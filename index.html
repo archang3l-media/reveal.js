@@ -64,8 +64,7 @@
 					<section>
 						<h2>Motivation</h2>
 						<p>
-							Ansible ist für mich das Tool der Wahl und auf Twitter hab ich dieses Jahr viel gelesen "ich würde es ja gern lernen, aber wie steige ich ein?".<br>
-							In diesem Vortrag möchte ich euch erklären, was für mich der beste/einfachste Weg war, Ansible zu lernen.
+							Ansible ist für mich das Tool der Wahl und auf Twitter hab ich dieses Jahr viel gelesen "ich würde es ja gern lernen, aber wie steige ich ein?"
 						</p>
 					</section>
 					<section>
@@ -131,7 +130,7 @@ local_tmp      = .ansible/tmp
 					<section>
 						<h2>Das Inventory:</h2>
 						<pre><code data-trim data-noescape>---
-MyServer:
+MyServers:
   hosts:
     rootserver:
       ansible_host: example.host
@@ -142,7 +141,9 @@ MyServer:
       ansible_host: 192.168.1.1
       ansible_user: root
       vars:
-        snmp_location: "Somewhere in the House"</code></pre>
+        snmp_location: "Somewhere in the House"
+WorkServers:
+[..]</code></pre>
 					</section>
 					<section>
 						<h2>Ein einfaches Playbook:</h2>
@@ -171,7 +172,7 @@ MyServer:
     ├── defaults
     │   └── main.yml
     ├── files
-    │   ├── h.borchers
+    │   ├── my_username
     │   ├── password_gen.py
     │   └── sudoers.j2
     ├── handlers
@@ -184,29 +185,96 @@ MyServer:
 					</section>
 					<section>
 						<h2>defaults</h2>
+						<pre><code data-trim data-noescape>
+							---
+   non_unique: no
+   sudoers: False
+   user_update_password: no
+						</code></pre>
 					</section>
 					<section>
 						<h2>files</h2>
+							<p>
+								Dateien die ihr nicht als Templates habt, sondern so wie sie sind auf dem Zielcomputer haben wollt</p>
 					</section>
+					<section><pre><code data-trim data-noescape>---
+ - name: Copy sudoers file for safety
+   command: cp -f /etc/sudoers /etc/sudoers.tmp
+
+ - name: Create sudoers file backup
+   command: cp -f /etc/sudoers /etc/sudoers.bak
+
+ - name: make sure we can sudo as admin group
+   lineinfile: dest=/etc/sudoers.tmp state=present regexp='^%admin' line='%admin ALL=(ALL) ALL'
+
+ - name: also make sure ssh-agent works via sudo
+   lineinfile: dest=/etc/sudoers.tmp state=present regexp='^Defaults env_keep\+\=SSH_AUTH_SOCK' line='Defaults env_keep+=SSH_AUTH_SOCK'
+
+ - name: Final sudoers file check
+   shell: visudo -q -c -f /etc/sudoers.tmp && cp -f /etc/sudoers.tmp /etc/sudoers
+
+ - name: restart ssh daemon
+   service: name=sshd state=restarted</code></pre></section>
 					<section>
 						<h2>handlers</h2>
+							<pre><code data-trim data-noescape>---
+  - name: restart ssh daemon
+    service: name=sshd state=restarted
+						</code></pre>
 					</section>
 					<section>
-						<h2>Tasks</h2>
+						<h2>Tasks (1/2)</h2>
+						<pre><code data-trim data-noescape>---
+- name: installing base software
+  package:
+    name: "{{os_packages[ansible_os_family][item]}}"
+    state: present
+  with_items:
+    - vim
+    - monitoring_Plugins
+						</code></pre>
 					</section>
 					<section>
-						<h2>vars</h2>
+						<h2>Tasks (2/2)</h2>
+							<pre><code data-trim data-noescape>---
+- name: secure ssh daemon
+  lineinfile: dest=/etc/ssh/sshd_config regexp=^PermitRootLogin line="PermitRootLogin without-password"
+  when: permitrootlogin is not defined
+  notify: restart ssh daemon
+  tags:
+    - new_system
+						</code></pre>
+					</section>
+					<section>
+						<h2>vars (1/2)</h2>
+							<pre><code data-trim data-noescape>
+							---
+os_packages:
+    Debian:
+        monitoring_Plugins: monitoring-plugins-basic
+    RedHat:
+        monitoring-plugins: nagios-plugins
+    ArchLinux:
+        monitoring-plugins: monitoring-plugins
+						</code></pre>
+					</section>
+					<section>
+						<h2>Vars (2/2)</h2>
+							<pre><code data-trim data-noescape>
+							vault_masterpassword: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          13372342133723421337234213372342133723421337234213372342133723421337234213372342
+          13372342133723421337234213372342133723421337234213372342133723421337234213372342
+          13372342133723421337234213372342133723421337234213372342133723421337234213372342
+          13372342133723421337234213372342133723421337234213372342133723421337234213372342
+          1337
+						</code></pre>
 					</section>
 				</section>
-
 			</div>
-
 		</div>
-
 		<script src="js/reveal.js"></script>
-
 		<script>
-
 			// More info https://github.com/hakimel/reveal.js#configuration
 			Reveal.initialize({
 				controls: true,
